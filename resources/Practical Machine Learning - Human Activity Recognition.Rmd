@@ -1,0 +1,85 @@
+---
+title: "Practical Machine Learning - Human Activity Recognition"
+author: "David Obenshain"
+date: "March 20, 2016"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(caret)
+library(AppliedPredictiveModeling)
+library(randomForest)
+library(doParallel)
+cl <- makeCluster(6)
+registerDoParallel(cl)
+
+RetrieveDataFunc <- function(downloadurl)
+{
+  download.file(url="https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv", destfile="pml-training.csv")
+  download.file(url="https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv", destfile="pml-testing.csv")
+}
+#Checks if data file exists, if not calls RetrieveDataFunc to download and extract dataset.
+if ( !file.exists("pml-training.csv") | !file.exists("pml-testing.csv"))
+{ RetrieveDataFunc() }
+
+```
+
+## Overview
+
+Using data acquired by wearable activity monitors, we will train a model to predict the type of exercise being performed.  The Human Activity Recognition (HAR) dataset from http://groupware.les.inf.puc-rio.br/har.
+
+Six participants were asked to perform excerises with the dumbell in five different ways: exactly according to the specification (Class A), throwing the elbows to the front (Class B), lifting the dumbbell only halfway (Class C), lowering the dumbbell only halfway (Class D) and throwing the hips to the front (Class E).  Sensors were placed on the arm, forearm, belt, and dumbell.
+
+
+## Retreiving and Subsetting the data
+
+[Training](https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv) and [Testing](https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv) data are being supplied.
+
+Looking at the data we observe entries with #DIV/0! and quite a few blanks in the raw dataset, which will investigate further after we load the dataset.
+
+```{r Loading the HAR Dataset}
+data <- read.table(file="pml-training.csv", header=TRUE, sep=",", na.strings=c('NA','#DIV/0!'))
+dim(data)
+```
+
+Looking at the dataset there are `r dim(data)[1]` rows and `r dim(data)[2]` columns.  If we count the number of columns that include an NA value we have `length(data[colSums(is.na(data)) > 0])`.  Inspecting the names of these columns we can see that they represent 'derived' values such as min, max, stdev, avg, kurtosis, skewness. We also do not need to include the record number (x), date/time information, username, or details regarding windows (our model should be able to predict the activity withot these).
+
+```{r Subsetting the HAR Dataset}
+data.subset <- data[colSums(!is.na(data)) == dim(data)[1]]
+data.subset <- data.subset[,8:60]
+```
+
+## Building the Model
+
+Given mulitple records from each sensor during each activity type we will use cross-validation (CV) to build our test/train dataset.A CV approach ensures every data point gets to be in the test set and k-1 times in the train set, where k is the number of fold, 5 in this case.  We will use a random forest to build our model, setting all remaining variables as possilbe predictors of classe, our outcome.
+
+
+```{r HAR Model}
+trCtl <- trainControl(method="cv", number=5)
+rf.model <- train(classe ~ ., data=data.subset, method="rf", trControl=trCtl)
+```
+
+## Evaluating the Model
+
+Looking at the model we acheive very high accuracy 0.995 from only a few predictors, roll_belt being most important: `r print(rf.model)`
+
+```{r Accuracy and Predictors }
+plot(rf.model)
+plot(varImp(rf.model))
+```
+We also observe low Out of Bound error of 0.43  `r print(rf.model$finalModel)`.
+
+### Conclusion
+We can conclude that this model would perform well with an accuracy of 99.5% and an out-of-sample accuracy (1-accuracy) or 0.05%.
+
+## Predicting using the Model
+
+Now we use the model to predict the classe of the test data supplied for this exercise.
+
+```{r Prediction using HAR Model}
+testing <- read.table(file='pml-testing.csv', header=TRUE, sep=",", na.strings=c('NA','#DIV/0!') )
+rf.pred <- predict(rf.model, testing)
+```
+
+For the 20 test cases, our model predicts the following for the classe variable: `r rf.pred`
