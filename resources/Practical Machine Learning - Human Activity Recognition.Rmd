@@ -54,6 +54,7 @@ data.subset <- data.subset[,8:60]
 
 Given mulitple records from each sensor during each activity type we will use cross-validation (CV) to build our test/train dataset.A CV approach ensures every data point gets to be in the test set and k-1 times in the train set, where k is the number of fold, 5 in this case.  We will use a random forest to build our model, setting all remaining variables as possilbe predictors of classe, our outcome.
 
+The Random Forest algorithm uses the concept of a classification or decision tree, but creates many trees each using randomly selected predictor variables for each node in the tree.  The concept of a 'forest' is that the individual trees vote for the best predictor, and the best tree is built based on those votes.
 
 ```{r HAR Model}
 trCtl <- trainControl(method="cv", number=5)
